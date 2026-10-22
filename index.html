@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="de" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-i9xwH5vKjNzIVl9wXZU/A/aJVQZe/2Qdj3fj/7BGxLs='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="theme-color" content="#F3F0E6" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#121212" media="(prefers-color-scheme: dark)">
+<meta name="description" content="Darts zählen am Board: X01 und Cricket, Checkout-Vorschläge, Statistik. Läuft lokal im Browser, offline, ohne Tracking.">
+<title>oddBits Darts</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="assets/favicon-32.png" type="image/png" sizes="32x32">
+<link rel="icon" href="assets/favicon.ico" sizes="48x48">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<script>
+(function () {
+  var t = null;
+  try { t = JSON.parse(localStorage.getItem("oddbits-darts-settings") || "{}").theme; } catch (e) {}
+  if (t !== "light" && t !== "dark") t = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  document.documentElement.setAttribute("data-theme", t);
+  try { if (JSON.parse(localStorage.getItem("oddbits-darts-settings") || "{}").palette === "classic") document.documentElement.setAttribute("data-palette", "classic"); } catch (e) {}
+})();
+</script>
+<link rel="stylesheet" href="style.css?v=0.5">
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <symbol id="mosquito" viewBox="0 0 24 24">
+    <g transform="translate(12 12) scale(0.94) translate(-12 -12) translate(0.38 -1.88) rotate(-10 12 12)">
+      <path style="fill: var(--accent)" d="M10.8 10.8 C8.4 9 5.2 8.2 2.2 8.8 C4.6 10.5 7.6 11.2 10.8 10.8 Z"/>
+      <path style="fill: var(--accent)" d="M10.8 13.2 C8.4 15 5.2 15.8 2.2 15.2 C4.6 13.5 7.6 12.8 10.8 13.2 Z"/>
+      <ellipse cx="5.8" cy="12" rx="4.4" ry="1"/>
+      <ellipse cx="11.6" cy="12" rx="1.6" ry="1.4"/>
+      <circle cx="14.2" cy="12" r="1"/>
+      <path d="M15.2 12 L23.2 12"/>
+      <path d="M14.8 11.2 L16.4 9.8 M14.8 12.8 L16.4 14.2"/>
+      <path d="M12.4 10.8 L13.8 8.6 M12.4 13.2 L13.8 15.4"/>
+      <path d="M10.8 10.6 L9 6.8 L1.2 5.4 M10.8 13.4 L9 17.2 L1.2 18.6"/>
+    </g>
+  </symbol>
+  <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></symbol>
+  <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></symbol>
+  <symbol id="i-close" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+  <symbol id="i-grip" viewBox="0 0 24 24"><path d="M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01"/></symbol>
+  <symbol id="i-shuffle" viewBox="0 0 24 24"><path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></symbol>
+  <symbol id="i-chart" viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></symbol>
+</svg>
+
+<!-- ===== Start / Spiel einrichten ===== -->
+<div class="screen screen-setup" id="setupScreen">
+  <header class="top">
+    <div class="brand">
+      <svg class="logo" viewBox="12 5 96 110" aria-hidden="true" focusable="false">
+        <polygon class="logo-outer" points="60,9.19 104,34.6 104,85.4 60,110.81 16,85.4 16,34.6"/>
+        <polygon class="logo-inner" points="64,19.28 101,40.64 101,83.36 64,104.72 27,83.36 27,40.64" transform="rotate(13 64 62)"/>
+      </svg>
+      <span class="brand-mark-small">oddBits <em>Darts</em></span>
+      <svg class="mascot" aria-hidden="true" focusable="false"><use href="#mosquito"/></svg>
+    </div>
+    <div class="hgroup">
+      <button type="button" class="hbtn hbtn-theme" id="themeBtn">
+        <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+          <circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" stroke-width="1.6"/>
+          <path d="M8 1.5a6.5 6.5 0 0 1 0 13z" fill="currentColor"/>
+        </svg>
+      </button>
+      <button type="button" class="hbtn hbtn-lang" id="langBtn">DE</button>
+      <button type="button" class="hbtn hbtn-icon" id="statsBtn"><svg class="ico" aria-hidden="true"><use href="#i-chart"/></svg></button>
+      <button type="button" class="hbtn hbtn-icon" id="settingsBtn"><svg class="ico" aria-hidden="true"><use href="#i-gear"/></svg></button>
+    </div>
+  </header>
+
+  <main class="setup">
+    <h1 class="visually-hidden">oddBits Darts</h1>
+
+    <div class="resume card" id="resumeCard" hidden>
+      <div class="resume-text">
+        <span class="kicker" data-t="running"></span>
+        <span class="resume-title" id="resumeTitle"></span>
+      </div>
+      <button type="button" class="btn-small" id="resumeBtn" data-t="resume"></button>
+    </div>
+
+    <section class="block">
+      <h2 class="block-title" data-t="game"></h2>
+      <div class="games" id="gamePick"></div>
+      <div class="opts" id="modeOpts" hidden></div>
+      <div class="opts" id="x01Opts">
+        <div class="opt"><span class="opt-label" data-t="startScore"></span><div class="seg" id="startSeg" role="group"></div></div>
+        <div class="opt"><span class="opt-label" data-t="checkIn"></span><div class="seg" id="inSeg" role="group"></div></div>
+        <div class="opt"><span class="opt-label" data-t="checkOut"></span><div class="seg" id="outSeg" role="group"></div></div>
+      </div>
+      <div class="opts" id="cricketOpts" hidden>
+        <div class="opt"><span class="opt-label" data-t="variant"></span><div class="seg" id="variantSeg" role="group"></div></div>
+        <p class="opt-note" id="variantNote"></p>
+      </div>
+    </section>
+
+    <section class="block" id="formatBlock">
+      <h2 class="block-title" data-t="format"></h2>
+      <div class="opts">
+        <div class="opt">
+          <span class="opt-label"><span data-t="legs"></span><span class="opt-sub" data-t="firstTo"></span></span>
+          <div class="stepper" data-step="legs">
+            <button type="button" class="step-btn" data-d="-1" aria-label="−">−</button>
+            <output class="step-val" id="legsVal"></output>
+            <button type="button" class="step-btn" data-d="1" aria-label="+">+</button>
+          </div>
+        </div>
+        <div class="opt">
+          <span class="opt-label"><span data-t="sets"></span><span class="opt-sub" id="setsSub"></span></span>
+          <div class="stepper" data-step="sets">
+            <button type="button" class="step-btn" data-d="-1" aria-label="−">−</button>
+            <output class="step-val" id="setsVal"></output>
+            <button type="button" class="step-btn" data-d="1" aria-label="+">+</button>
+          </div>
+        </div>
+        <div class="opt">
+          <span class="opt-label"><span data-t="teams"></span><span class="opt-sub" data-t="teamsSub"></span></span>
+          <div class="seg" id="teamSeg" role="group"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="block">
+      <div class="block-head">
+        <h2 class="block-title" data-t="players"></h2>
+        <button type="button" class="link-btn" id="shuffleBtn"><svg class="ico" aria-hidden="true"><use href="#i-shuffle"/></svg><span data-t="shuffle"></span></button>
+      </div>
+      <ol class="lineup" id="lineup"></ol>
+      <p class="hint" id="lineupHint"></p>
+      <div class="known" id="known"></div>
+      <form class="add-player" id="addForm">
+        <input type="text" id="addName" maxlength="20" autocomplete="off" enterkeyhint="done">
+        <button type="submit" class="btn-small" data-t="add"></button>
+      </form>
+    </section>
+
+    <button type="button" class="btn-primary btn-start" id="startBtn" data-t="start"></button>
+
+  </main>
+</div>
+
+<!-- ===== Spiel ===== -->
+<div class="screen screen-game" id="gameScreen" hidden>
+  <header class="gbar">
+    <button type="button" class="icon-btn" id="leaveBtn"><svg class="ico" aria-hidden="true"><use href="#i-back"/></svg></button>
+    <div class="gbar-title">
+      <span class="gbar-game" id="gTitle"></span>
+      <span class="gbar-meta" id="gMeta"></span>
+    </div>
+    <div class="seg seg-input" id="inputSeg" role="group"></div>
+    <button type="button" class="icon-btn" id="gSettingsBtn"><svg class="ico" aria-hidden="true"><use href="#i-gear"/></svg></button>
+  </header>
+  <div class="gbody">
+    <div class="gboard">
+      <div class="scores" id="scores"></div>
+      <div class="active" id="active"></div>
+    </div>
+    <div class="pad" id="pad"></div>
+  </div>
+</div>
+
+<!-- ===== Statistik ===== -->
+<div class="screen screen-stats" id="statsScreen" hidden>
+  <header class="top">
+    <div class="brand">
+      <button type="button" class="icon-btn" id="statsBackBtn"><svg class="ico" aria-hidden="true"><use href="#i-back"/></svg></button>
+      <h1 class="page-title" data-t="stats"></h1>
+    </div>
+  </header>
+  <main class="setup">
+    <div class="seg seg-wide" id="statsGameSeg" role="group"></div>
+    <div class="who" id="statsWho"></div>
+    <div class="kpis" id="kpis"></div>
+    <section class="block" id="recentBlock">
+      <h2 class="block-title" data-t="recent"></h2>
+      <ul class="hist" id="histList"></ul>
+    </section>
+  </main>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+<input type="file" id="importFile" accept="application/json,.json" hidden>
+
+<div class="scrim" id="scrim" hidden></div>
+<div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle" hidden></div>
+
+<p class="visually-hidden" id="status" role="status" aria-live="polite"></p>
+<noscript><p class="noscript">oddBits Darts braucht JavaScript. Alles läuft lokal in deinem Browser, nichts wird gesendet.</p></noscript>
+
+<script type="module" src="js/app.js?v=0.5"></script>
+</body>
+</html>

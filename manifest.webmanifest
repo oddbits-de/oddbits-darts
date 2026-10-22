@@ -1,0 +1,17 @@
+{
+  "name": "oddBits Darts",
+  "short_name": "Darts",
+  "description": "Darts zählen am Board: X01 und Cricket, Checkout-Vorschläge, Statistik. Läuft lokal im Browser, offline, ohne Tracking.",
+  "lang": "de",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#F3F0E6",
+  "theme_color": "#F3F0E6",
+  "icons": [
+    { "src": "assets/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "assets/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "assets/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
