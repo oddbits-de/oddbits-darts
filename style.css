@@ -597,6 +597,11 @@ a { color: var(--accent-text); }
 .ctab thead .is-on { box-shadow: inset 0 -4px 0 var(--accent); }
 .c-name { display: block; font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ctab thead .is-on .c-name { font-size: 16px; }
+.c-short { display: none; }
+@media (max-width: 599px) {
+  .ctab-5 .c-full, .ctab-6 .c-full, .ctab-7 .c-full, .ctab-8 .c-full { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .ctab-5 .c-short, .ctab-6 .c-short, .ctab-7 .c-short, .ctab-8 .c-short { display: block; overflow: hidden; text-overflow: clip; }
+}
 .c-last { display: flex; flex-wrap: wrap; justify-content: center; gap: 2px; min-height: 1.3em; font-family: var(--font-display); font-weight: 700; font-size: 13px; line-height: 1; }
 .c-last .vd { min-width: 0; padding: 1px 3px 0; border-width: 1px; border-radius: 3px; }
 .ctab thead .is-on .c-last { color: var(--accent-text); }
@@ -638,6 +643,7 @@ a { color: var(--accent-text); }
 .btn-bot:hover { background: var(--tint); }
 .chip-bot { border-style: dashed; }
 .vnum { text-transform: none; }
+.news-v { margin: 4px 0 0; font-family: var(--font-mono); font-size: 13px; color: var(--muted); }
 .news { margin: 0; padding-left: 1.2em; display: grid; gap: 10px; line-height: 1.45; }
 .update-bar {
   position: fixed;

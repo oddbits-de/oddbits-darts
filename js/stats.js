@@ -135,7 +135,7 @@ export function validGame(r, mustFinish = false) {
   if (!c.players.every(okPlayer) || c.players.every(p => p.bot !== undefined)) return false;
   if (c.game === "killer" && (![3, 5].includes(c.lives) || c.players.length < 2 || !Array.isArray(c.numbers) || c.numbers.length !== c.players.length
     || !c.numbers.every(v => isInt(v) && v >= 1 && v <= 20) || new Set(c.numbers).size !== c.numbers.length)) return false;
-  if (!Array.isArray(r.actions) || r.actions.length > 20000) return false;
+  if (!Array.isArray(r.actions) || r.actions.length > 100000) return false;
   const inRange = (v, lo, hi) => v === undefined || (isInt(v) && v >= lo && v <= hi);
   const okAction = a => a && ((a.t === "d" && isInt(a.n) && isInt(a.m) && okDart(a.n, a.m) && (a.z === undefined || a.z === "i" || a.z === "o"))
     || (a.t === "v" && c.game === "x01" && isInt(a.score) && a.score >= 0 && a.score <= 180 && inRange(a.darts, 1, 3) && inRange(a.dd, 0, 3))

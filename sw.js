@@ -1,9 +1,9 @@
-const CACHE = "oddbits-darts-v0.6";
+const CACHE = "oddbits-darts-v0.6.1";
 const FILES = [
   "./",
   "index.html",
-  "style.css?v=0.6",
-  "js/app.js?v=0.6",
+  "style.css?v=0.6.1",
+  "js/app.js?v=0.6.1",
   "js/modes.js",
   "js/rules.js",
   "js/stats.js",

@@ -6,7 +6,7 @@ import { suggestCheckout, isBogey } from "./checkout.js";
 import { I18N } from "./i18n.js";
 import { BOT_LEVELS, botPlayer, botDart, isBotLevel } from "./bot.js";
 
-const VERSION = "0.6";
+const VERSION = "0.6.1";
 const KEY = "oddbits-darts-";
 const MAX_PLAYERS = 8;
 
@@ -812,7 +812,7 @@ function renderScoresMode() {
 function renderScoresCricket() {
   const ps = state.players;
   const showLegs = match.cfg.legs > 1 || match.cfg.sets > 1;
-  const head = `<tr><th scope="col"></th>${ps.map((p, i) => `<th scope="col" class="${i === state.current ? "is-on" : ""}"><span class="c-name">${esc(p.name)}</span><span class="c-last">${visitHtml(p, i)}</span><span class="c-pts">${p.score}</span>${showLegs ? `<span class="c-legs">${legsText(p)}</span>` : ""}</th>`).join("")}</tr>`;
+  const head = `<tr><th scope="col"></th>${ps.map((p, i) => `<th scope="col" class="${i === state.current ? "is-on" : ""}"><span class="c-name"><span class="c-full">${esc(p.name)}</span><span class="c-short" aria-hidden="true">${esc(p.name.split(/[\s·&]+/).find(Boolean) || p.name)}</span></span><span class="c-last">${visitHtml(p, i)}</span><span class="c-pts">${p.score}</span>${showLegs ? `<span class="c-legs">${legsText(p)}</span>` : ""}</th>`).join("")}</tr>`;
   const body = CRICKET_TARGETS.map(tg => {
     const dead = ps.every(p => p.marks[tg] >= 3);
     return `<tr class="${dead ? "is-dead" : ""}"><th scope="row">${tg === 25 ? esc(t("bull")) : tg}</th>${ps.map((p, i) => `<td class="${i === state.current ? "is-on" : ""}">${markSvg(p.marks[tg])}</td>`).join("")}</tr>`;
@@ -904,8 +904,31 @@ function renderActive() {
     ${x01 ? `<div class="act-co">${hold ? holdHtml(p) : checkoutHtml(p)}</div>` : ""}`;
 }
 
+// Die Tasten werden bei jeder Eingabe neu gezeichnet; damit Tastatur und Screenreader nicht jedes Mal von vorn beginnen, bleibt der Fokus auf derselben Taste.
+const PAD_KEYS = ["n", "m", "z", "k", "mod", "digit"];
+let padFocusKey = "";
+let padFocused = false;
+
+function padKeyOf(el) {
+  const b = el && el.closest ? el.closest("#pad button") : null;
+  if (!b) return "";
+  return PAD_KEYS.map(k => b.dataset[k] !== undefined ? `[data-${k}="${CSS.escape(b.dataset[k])}"]` : "").join("");
+}
+
+function restorePadFocus() {
+  if (!padFocused) return;
+  const pad = $("pad");
+  const cover = pad.querySelector("[data-skip]");
+  const b = cover || (padFocusKey && pad.querySelector("button" + padFocusKey)) || pad.querySelector("button:not(:disabled)");
+  if (b && !b.disabled) b.focus({ preventScroll: true });
+}
+
 function renderPad() {
   const pad = $("pad");
+  const active = document.activeElement;
+  padFocused = pad.contains(active) || (padFocused && active === document.body);
+  const key = padKeyOf(active);
+  if (key) padFocusKey = key;
   const lastAct = match.actions[match.actions.length - 1];
   const undoLabel = lastAct && lastAct.t === "v" ? t("undoVisit") : t("undoLast");
   const canUndo = match.actions.length && (!match.cfg.players.some(p => p.bot !== undefined) || lastHumanAction() >= 0);
@@ -1033,6 +1056,7 @@ function renderGame() {
   const on = $("scores").querySelector(".is-on");
   if (on && match.cfg.game !== "cricket") on.scrollIntoView({ block: "nearest" });
   renderBotCover();
+  restorePadFocus();
   scheduleBot();
 }
 
@@ -1340,7 +1364,7 @@ function openSettings() {
       <p class="set-note">${esc(t("deleteAllNote"))}</p>
       <button type="button" class="link-btn link-danger" id="sDelete">${esc(t("deleteAll"))}</button>
     </div>
-    ${t("news")[VERSION] ? `<button type="button" class="link-btn" id="sNews">${esc(t("newLink")(VERSION))}</button>` : ""}
+    ${newsVersions().length ? `<button type="button" class="link-btn" id="sNews">${esc(t("newLink"))}</button>` : ""}
     <button type="button" class="btn-small sheet-close" data-close>${esc(t("close"))}</button>
     ${footerHtml()}`, el => {
     const news = el.querySelector("#sNews");
@@ -1397,12 +1421,30 @@ function openSettings() {
   });
 }
 
-function openNews() {
-  const items = t("news")[VERSION];
-  if (!items) return;
+const versionParts = v => String(v).split(".").map(Number);
+function compareVersions(a, b) {
+  const x = versionParts(a), y = versionParts(b);
+  for (let i = 0; i < Math.max(x.length, y.length); i++) {
+    const d = (x[i] || 0) - (y[i] || 0);
+    if (d) return d;
+  }
+  return 0;
+}
+
+// Neuigkeiten aller Versionen nach „since“ bis zur laufenden, neueste zuerst; ohne „since“ nur die neueste.
+function newsVersions(since) {
+  const all = Object.keys(t("news")).filter(v => compareVersions(v, VERSION) <= 0).sort((a, b) => compareVersions(b, a));
+  return since === undefined ? all.slice(0, 1) : all.filter(v => compareVersions(v, since) > 0);
+}
+
+function openNews(since) {
+  const versions = newsVersions(since);
+  if (!versions.length) return;
+  const list = v => `<ul class="news">${t("news")[v].map(([head, text]) => `<li>${head ? `<strong>${esc(head)}:</strong> ` : ""}${esc(text)}</li>`).join("")}</ul>`;
   openSheet(`
-    <h2 class="sheet-title" id="sheetTitle">${esc(t("newTitle"))} <span class="vnum">v${VERSION}</span></h2>
-    <ul class="news">${items.map(([head, text]) => `<li>${head ? `<strong>${esc(head)}:</strong> ` : ""}${esc(text)}</li>`).join("")}</ul>
+    <h2 class="sheet-title" id="sheetTitle">${esc(t("newTitle"))} <span class="vnum">v${versions[0]}</span></h2>
+    ${list(versions[0])}
+    ${versions.slice(1).map(v => `<h3 class="news-v">v${v}</h3>${list(v)}`).join("")}
     <div class="sheet-actions"><button type="button" class="btn-primary" data-close>${esc(t("newOk"))}</button></div>`);
 }
 
@@ -1732,6 +1774,8 @@ const cleanAction = a => a.t === "s" ? { t: "s" } : a.t === "d" ? (a.z ? { t: "d
 
 const MAX_IMPORT = 20 * 1024 * 1024;
 
+const dateStr = v => typeof v === "string" ? v.slice(0, 40) : "";
+
 async function importData(file) {
   if (file.size > MAX_IMPORT) {
     toast(t("importFailed"), "warn");
@@ -1752,8 +1796,8 @@ async function importData(file) {
     id: r.id,
     cfg: cleanCfg(r.cfg),
     actions: r.actions.map(cleanAction),
-    startedAt: String(r.startedAt || ""),
-    finishedAt: String(r.finishedAt || r.startedAt || "")
+    startedAt: dateStr(r.startedAt),
+    finishedAt: dateStr(r.finishedAt) || dateStr(r.startedAt)
   }));
   await putMatches(fresh);
   if (Array.isArray(data.players)) {
@@ -1851,8 +1895,9 @@ function init() {
   if (match && state && !state.finished) showGame();
   else showSetup();
 
-  if (load("seen", null) !== VERSION) {
-    if (returning) openNews();
+  const seen = load("seen", null);
+  if (seen !== VERSION) {
+    if (returning) openNews(typeof seen === "string" ? seen : "0");
     save("seen", VERSION);
   }
 

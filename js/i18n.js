@@ -119,7 +119,7 @@ export const I18N = {
     lineupFull: "Max. Anzahl an Spielenden erreicht.",
     newTitle: "Neu in",
     newOk: "Los geht's",
-    newLink: v => "Was ist neu in v" + v + "?",
+    newLink: "Was ist neu?",
     news: {
       "0.6": [
         ["Gegen Bots spielen", "In X01 und Cricket kannst du jetzt gegen einen von acht Bots antreten, von Lotte (Ø 30) bis Noor (Ø 100). In der Aufstellung einfach auf „+ Bot“ tippen."],
@@ -349,7 +349,7 @@ export const I18N = {
     lineupFull: "Maximum number of players reached.",
     newTitle: "New in",
     newOk: "Let's go",
-    newLink: v => "What's new in v" + v + "?",
+    newLink: "What's new?",
     news: {
       "0.6": [
         ["Play against bots", "In X01 and Cricket you can now take on one of eight bots, from Lotte (Ø 30) to Noor (Ø 100). Just tap “+ Bot” in the line-up."],
