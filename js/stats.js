@@ -1,4 +1,5 @@
 import { play, MODES } from "./modes.js";
+import { isBotLevel } from "./bot.js";
 
 const SUM_KEYS = ["points", "darts", "f9Points", "f9Darts", "marks", "ton", "ton40", "max", "checkouts", "ddarts"];
 
@@ -86,6 +87,7 @@ export function historyPlayers(records) {
   const sorted = records.slice().sort((a, b) => String(a.finishedAt).localeCompare(String(b.finishedAt)));
   for (const r of sorted) {
     for (const p of r.cfg.players) {
+      if (p.bot !== undefined) continue;
       const solo = p.members && p.members.length === 1;
       for (const q of [...(solo ? [] : [p]), ...(p.members || [])]) {
         const e = map.get(q.id) || { id: q.id, name: q.name, matches: 0 };
@@ -126,10 +128,11 @@ export function validGame(r, mustFinish = false) {
   if (!Array.isArray(c.players) || c.players.length < 1 || c.players.length > 8) return false;
   if (c.teams !== undefined && (c.teams !== true || !["x01", "cricket"].includes(c.game))) return false;
   const okMember = m => m && isId(m.id) && isStr(m.name) && m.name.length <= 20;
-  const okPlayer = p => p && isId(p.id) && isStr(p.name) && (c.teams
+  const okBot = p => p.bot === undefined || (isBotLevel(p.bot) && p.id === "bot:" + p.bot && !c.teams && (c.game === "x01" || c.game === "cricket"));
+  const okPlayer = p => p && isId(p.id) && isStr(p.name) && okBot(p) && (c.teams
     ? Array.isArray(p.members) && p.members.length >= 1 && p.members.length <= 4 && p.members.every(okMember)
     : p.name.length <= 20 && p.members === undefined);
-  if (!c.players.every(okPlayer)) return false;
+  if (!c.players.every(okPlayer) || c.players.every(p => p.bot !== undefined)) return false;
   if (c.game === "killer" && (![3, 5].includes(c.lives) || c.players.length < 2 || !Array.isArray(c.numbers) || c.numbers.length !== c.players.length
     || !c.numbers.every(v => isInt(v) && v >= 1 && v <= 20) || new Set(c.numbers).size !== c.numbers.length)) return false;
   if (!Array.isArray(r.actions) || r.actions.length > 20000) return false;

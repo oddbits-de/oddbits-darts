@@ -4,8 +4,9 @@ import { play, MODES, HALVE_TARGETS, raceTarget, bobsTarget } from "./modes.js";
 import { putMatch, putMatches, deleteMatch, allMatches, deleteDatabase } from "./db.js";
 import { suggestCheckout, isBogey } from "./checkout.js";
 import { I18N } from "./i18n.js";
+import { BOT_LEVELS, botPlayer, botDart, isBotLevel } from "./bot.js";
 
-const VERSION = "0.5";
+const VERSION = "0.6";
 const KEY = "oddbits-darts-";
 const MAX_PLAYERS = 8;
 
@@ -70,6 +71,8 @@ function cleanSetup(v) {
   return s;
 }
 
+// Vor dem ersten Speichern prüfen, ob die App hier schon benutzt wurde: nur dann gibt es das „Was ist neu“-Fenster.
+const returning = ["settings", "players", "setup", "match"].some(k => { try { return localStorage.getItem(KEY + k) !== null; } catch (e) { return false; } });
 let settings = cleanSettings(load("settings", {}));
 let roster = cleanRoster(load("players", []));
 let setup = cleanSetup(load("setup", {}));
@@ -169,8 +172,17 @@ function seg(el, opts, cur, pick) {
 
 /* ===== Start ===== */
 
+function botFromId(id) {
+  const m = /^bot:(\d+)$/.exec(id);
+  return m && isBotLevel(Number(m[1])) ? botPlayer(Number(m[1])) : null;
+}
+
 function lineupPlayers() {
-  return setup.lineup.map(id => roster.find(p => p.id === id)).filter(Boolean);
+  return setup.lineup.map(id => roster.find(p => p.id === id) || botFromId(id)).filter(Boolean);
+}
+
+function botsAllowed() {
+  return (setup.game === "x01" || setup.game === "cricket") && !teamsOn();
 }
 
 function saveSetup() {
@@ -269,6 +281,11 @@ function startProblem() {
   const list = lineupPlayers();
   if (list.length < minPlayers()) return list.length ? t("killerMin") : "";
   if (teamsOn() && buildTeams(list).length < 2) return t("teamsMin");
+  if (list.some(p => p.bot)) {
+    if (setup.game !== "x01" && setup.game !== "cricket") return t("botGameOnly");
+    if (teamsOn()) return t("botNoTeams");
+    if (list.every(p => p.bot)) return t("botNeedsHuman");
+  }
   return "";
 }
 
@@ -319,7 +336,7 @@ function renderResume() {
 }
 
 function renderLineup() {
-  setup.lineup = setup.lineup.filter(id => roster.some(p => p.id === id));
+  setup.lineup = setup.lineup.filter(id => roster.some(p => p.id === id) || botFromId(id));
   const list = lineupPlayers();
   $("lineup").innerHTML = list.map((p, i) => `
     <li class="lu-row" data-id="${esc(p.id)}">
@@ -335,7 +352,8 @@ function renderLineup() {
     <span class="chip">
       <button type="button" class="chip-add" data-id="${esc(p.id)}"${list.length >= MAX_PLAYERS ? " disabled" : ""}>+ ${esc(p.name)}</button>
       <button type="button" class="chip-x" data-id="${esc(p.id)}" aria-label="${esc(t("forget"))}: ${esc(p.name)}"><svg class="ico" aria-hidden="true"><use href="#i-close"/></svg></button>
-    </span>`).join("");
+    </span>`).join("")
+    + `<span class="chip chip-bot"><button type="button" class="chip-add" data-bot${list.length >= MAX_PLAYERS || !botsAllowed() || BOT_LEVELS.every(l => setup.lineup.includes("bot:" + l)) ? " disabled" : ""}>+ ${esc(t("addBot"))}</button></span>`;
   if (teamsOn() && list.length > 1) $("lineupHint").textContent = t("teamsHint");
   const problem = startProblem();
   $("startBtn").disabled = list.length === 0 || !!problem;
@@ -425,7 +443,9 @@ function initLineupEvents() {
   $("known").addEventListener("click", e => {
     const add = e.target.closest(".chip-add");
     const x = e.target.closest(".chip-x");
-    if (add && setup.lineup.length < MAX_PLAYERS) {
+    if (add && add.dataset.bot !== undefined) {
+      openBotPicker();
+    } else if (add && setup.lineup.length < MAX_PLAYERS) {
       setup.lineup.push(add.dataset.id);
       saveSetup();
       renderLineup();
@@ -463,6 +483,22 @@ function initLineupEvents() {
       saveSetup();
       renderSetup();
     });
+  });
+}
+
+function openBotPicker() {
+  const free = BOT_LEVELS.filter(l => !setup.lineup.includes("bot:" + l));
+  openSheet(`
+    <h2 class="sheet-title" id="sheetTitle">${esc(t("botPick"))}</h2>
+    <p class="sheet-sub">${esc(t("botPickSub"))}</p>
+    <div class="bot-pick">${free.map(l => `<button type="button" class="btn-bot" data-level="${l}">${esc(botPlayer(l).name)}</button>`).join("")}</div>
+    <button type="button" class="link-btn" data-close>${esc(t("cancel"))}</button>`, el => {
+    el.querySelectorAll("[data-level]").forEach(b => b.addEventListener("click", () => {
+      if (setup.lineup.length < MAX_PLAYERS) setup.lineup.push("bot:" + b.dataset.level);
+      saveSetup();
+      closeSheet();
+      renderLineup();
+    }));
   });
 }
 
@@ -532,21 +568,130 @@ function inputMode() {
   return isX01() ? settings.inputX01 : "dart";
 }
 
+const HOLD_MS = 1200;
+let hold = null;
+let holdTimer = 0;
+
+function clearHold() {
+  clearTimeout(holdTimer);
+  holdTimer = 0;
+  hold = null;
+}
+
+// Nach dem letzten Dart einer Aufnahme bleibt sie kurz im Feld stehen, sonst wäre der dritte Dart dort nie zu sehen.
 function act(a) {
   if (!state || state.finished) return;
+  const prev = state.current;
+  const name = isMode() ? "" : thrower(state.players[prev]).name;
+  clearHold();
   match.actions.push(a);
   save("match", match);
   recompute();
   mod = 1;
   sumEntry = "";
+  if (!isMode() && a.t === "d" && !state.finished && state.current !== prev && !["leg", "set", "match"].includes(state.event)) {
+    hold = { idx: prev, name };
+    holdTimer = setTimeout(() => {
+      clearHold();
+      renderGame();
+    }, HOLD_MS);
+  }
   renderGame();
   afterAction(a);
 }
 
+const BOT_DELAY = 700;
+let botTimer = 0;
+
+function botLevel(s = state) {
+  return match.cfg.players[s.current].bot;
+}
+
+function isBotTurn() {
+  return !!state && !state.finished && botLevel() !== undefined;
+}
+
+function botMayThrow() {
+  return isBotTurn() && !hold && !$("gameScreen").hidden && $("sheet").hidden;
+}
+
+function stopBot() {
+  clearTimeout(botTimer);
+  botTimer = 0;
+}
+
+function scheduleBot() {
+  stopBot();
+  if (botMayThrow()) botTimer = setTimeout(() => {
+    botTimer = 0;
+    if (!botMayThrow()) return;
+    const d = botDart(state, botLevel());
+    act(d);
+    flyDart(dartLabel(d));
+  }, BOT_DELAY);
+}
+
+const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)");
+
+// Bot-Dart erscheint groß in der Mitte der Tafel und fliegt in sein Kästchen.
+function flyDart(label) {
+  if (reduceMotion.matches || !$("sheet").hidden || !document.body.animate) return;
+  const set = $("active").querySelectorAll(".slot.is-set");
+  const slot = set[set.length - 1];
+  if (!slot) return;
+  const a = $("active").getBoundingClientRect();
+  const r = slot.getBoundingClientRect();
+  const cx = a.left + a.width / 2;
+  const cy = a.top + a.height / 2;
+  const el = document.createElement("div");
+  el.className = "fly";
+  el.setAttribute("aria-hidden", "true");
+  el.textContent = label;
+  el.style.left = cx + "px";
+  el.style.top = cy + "px";
+  document.body.appendChild(el);
+  slot.classList.add("is-landing");
+  const k = parseFloat(getComputedStyle(slot).fontSize) / parseFloat(getComputedStyle(el).fontSize);
+  const at = (x, y, sc) => `translate(calc(-50% + ${x}px), calc(-50% + ${y}px)) scale(${sc})`;
+  const anim = el.animate([
+    { transform: at(0, 0, .4), opacity: 0 },
+    { transform: at(0, 0, 1), opacity: 1, offset: .25 },
+    { transform: at(0, 0, 1), opacity: 1, offset: .55 },
+    { transform: at(r.left + r.width / 2 - cx, r.top + r.height / 2 - cy, k), opacity: 1 }
+  ], { duration: 600, easing: "ease-in-out" });
+  const done = () => {
+    el.remove();
+    slot.classList.remove("is-landing");
+  };
+  anim.onfinish = done;
+  anim.oncancel = done;
+}
+
+function skipBot() {
+  stopBot();
+  clearHold();
+  const who = state.current;
+  const legs = state.legLog.length;
+  while (botMayThrow() && state.current === who && state.legLog.length === legs) act(botDart(state, botLevel()));
+}
+
+// Index der letzten Aktion einer Person (kein Bot); Rückgängig nimmt sie samt den Bot-Darts danach zurück.
+function lastHumanAction() {
+  for (let i = match.actions.length - 1; i >= 0; i--) {
+    const before = play(match.cfg, match.actions.slice(0, i));
+    if (botLevel(before) === undefined) return i;
+  }
+  return -1;
+}
+
 function undo() {
   if (!match || !match.actions.length) return;
+  const keep = lastHumanAction();
+  if (keep < 0) return;
+  stopBot();
+  clearHold();
   if (state && state.finished) deleteMatch(match.id).catch(() => {});
-  match.actions.pop();
+  match.actions.length = keep;
   save("match", match);
   recompute();
   mod = 1;
@@ -587,9 +732,9 @@ function markSvg(n) {
   return `<svg class="mark mark-${Math.min(n, 3)}" viewBox="0 0 24 24" aria-hidden="true">${inner}</svg>`;
 }
 
-function slotsHtml() {
+function slotsHtml(darts = state.visit) {
   const slots = [0, 1, 2].map(i => {
-    const d = state.visit[i];
+    const d = darts[i];
     return `<span class="slot${d ? " is-set" : ""}">${d ? esc(d.label || dartLabel(d)) : ""}</span>`;
   }).join("");
   return `<div class="slots" aria-hidden="true">${slots}</div>`;
@@ -722,8 +867,14 @@ function modeActive(p) {
   return { sub: `${t("attempt")} ${Math.min(p.attempt + 1, match.cfg.attempts)}/${match.cfg.attempts} · ${t("darts")} ${p.attemptDarts}/${match.cfg.dartsPer}`, big: p.rest, line: checkoutHtml(p) };
 }
 
+function holdHtml(p) {
+  const v = p.lastVisit;
+  if (!isX01() || !v) return "";
+  return v.bust ? `<span class="hold-sum is-bust">Bust</span>` : `<span class="hold-sum">= ${v.points}</span>`;
+}
+
 function renderActive() {
-  const p = state.players[state.current];
+  const p = state.players[hold ? hold.idx : state.current];
   if (isMode()) {
     const m = modeActive(p);
     $("active").innerHTML = `
@@ -736,11 +887,11 @@ function renderActive() {
   const sub = x01
     ? `${t("avg")} ${p.stats.darts ? fmt(average(p.stats)) : "–"} · ${p.stats.darts} ${t("darts")}`
     : `${t("mpr")} ${p.stats.darts ? fmt(marksPerRound(p.stats)) : "–"} · ${p.score} ${t("points")}`;
-  const sumMode = inputMode() === "sum";
+  const sumMode = inputMode() === "sum" && !hold && !isBotTurn();
   const big = x01
     ? `<span class="act-rest">${p.rest}</span>`
     : `<span class="act-rest act-rest-c">${p.score}</span>`;
-  const who = thrower(p);
+  const who = hold ? { name: hold.name } : thrower(p);
   $("active").innerHTML = `
     <div class="act-top">
       <span class="act-name">${esc(who.name)}</span>
@@ -748,16 +899,17 @@ function renderActive() {
     </div>
     <div class="act-mid">
       ${big}
-      ${sumMode ? `<div class="sum-disp" aria-live="off"><span class="sum-val">${esc(sumEntry || "0")}</span></div>` : slotsHtml()}
+      ${sumMode ? `<div class="sum-disp" aria-live="off"><span class="sum-val">${esc(sumEntry || "0")}</span></div>` : slotsHtml(hold ? p.lastVisit.darts : state.visit)}
     </div>
-    ${x01 ? `<div class="act-co">${checkoutHtml(p)}</div>` : ""}`;
+    ${x01 ? `<div class="act-co">${hold ? holdHtml(p) : checkoutHtml(p)}</div>` : ""}`;
 }
 
 function renderPad() {
   const pad = $("pad");
   const lastAct = match.actions[match.actions.length - 1];
   const undoLabel = lastAct && lastAct.t === "v" ? t("undoVisit") : t("undoLast");
-  const undoBtn = `<button type="button" class="k k-undo" data-k="undo" aria-label="${esc(undoLabel)}"${match.actions.length ? "" : " disabled"}><svg class="ico" aria-hidden="true"><use href="#i-undo"/></svg><span>${esc(t("undo"))}</span></button>`;
+  const canUndo = match.actions.length && (!match.cfg.players.some(p => p.bot !== undefined) || lastHumanAction() >= 0);
+  const undoBtn = `<button type="button" class="k k-undo" data-k="undo" aria-label="${esc(undoLabel)}"${canUndo ? "" : " disabled"}><svg class="ico" aria-hidden="true"><use href="#i-undo"/></svg><span>${esc(t("undo"))}</span></button>`;
   if (isMode() && !isCheckoutTraining()) {
     pad.className = "pad pad-mode";
     pad.innerHTML = modePadHtml() + `<div class="pad-row"><button type="button" class="k k-miss" data-n="0">${esc(t("miss"))}</button>${undoBtn}</div>`;
@@ -880,6 +1032,24 @@ function renderGame() {
   renderInputSeg();
   const on = $("scores").querySelector(".is-on");
   if (on && match.cfg.game !== "cricket") on.scrollIntoView({ block: "nearest" });
+  renderBotCover();
+  scheduleBot();
+}
+
+function renderBotCover() {
+  const pad = $("pad");
+  const bot = isBotTurn();
+  pad.classList.toggle("is-bot", bot);
+  if (!bot) return;
+  pad.querySelectorAll("button").forEach(b => { b.tabIndex = -1; });
+  const cover = document.createElement("div");
+  cover.className = "bot-cover";
+  pad.appendChild(cover);
+  const p = state.players[state.current];
+  cover.innerHTML = `<button type="button" class="bot-skip" data-skip><span class="bot-who">${esc(t("botThrows")(p.name))}</span><span class="bot-hint">${esc(t("botSkip"))}</span></button>
+    <button type="button" class="k k-undo bot-undo" data-undo${lastHumanAction() >= 0 ? "" : " disabled"}><svg class="ico" aria-hidden="true"><use href="#i-undo"/></svg><span>${esc(t("undo"))}</span></button>`;
+  cover.querySelector("[data-skip]").onclick = skipBot;
+  cover.querySelector("[data-undo]").onclick = undo;
 }
 
 function submitSum() {
@@ -927,7 +1097,7 @@ function askChoice(title, options, pick) {
 function initPadEvents() {
   $("pad").addEventListener("click", e => {
     const b = e.target.closest("button");
-    if (!b || b.disabled || !state || state.finished) return;
+    if (!b || b.disabled || !state || state.finished || isBotTurn()) return;
     if (b.dataset.k === "undo") return undo();
     if (b.dataset.k === "keep") return act({ t: "s" });
     if (b.dataset.mod) {
@@ -964,7 +1134,7 @@ function initPadEvents() {
       undo();
       return;
     }
-    if (inputMode() !== "sum") return;
+    if (inputMode() !== "sum" || isBotTurn()) return;
     if (/^\d$/.test(e.key)) {
       if (sumEntry.length < 3) sumEntry = (sumEntry + e.key).replace(/^0+(?=\d)/, "");
       renderActive();
@@ -1142,6 +1312,7 @@ function closeSheet() {
   document.documentElement.classList.remove("sheet-open");
   setInert(false);
   if (sheetReturnFocus && document.contains(sheetReturnFocus)) sheetReturnFocus.focus();
+  if (!$("gameScreen").hidden && state) renderGame();
 }
 
 $("scrim").addEventListener("click", () => { if (sheetDismissable) closeSheet(); });
@@ -1169,8 +1340,14 @@ function openSettings() {
       <p class="set-note">${esc(t("deleteAllNote"))}</p>
       <button type="button" class="link-btn link-danger" id="sDelete">${esc(t("deleteAll"))}</button>
     </div>
+    ${t("news")[VERSION] ? `<button type="button" class="link-btn" id="sNews">${esc(t("newLink")(VERSION))}</button>` : ""}
     <button type="button" class="btn-small sheet-close" data-close>${esc(t("close"))}</button>
     ${footerHtml()}`, el => {
+    const news = el.querySelector("#sNews");
+    if (news) news.addEventListener("click", () => {
+      closeSheet();
+      openNews();
+    });
     const bindSegs = () => {
       seg(el.querySelector("#sTheme"), [
         { v: "system", label: t("themeSystem") }, { v: "light", label: t("themeLight") }, { v: "dark", label: t("themeDark") }
@@ -1218,6 +1395,44 @@ function openSettings() {
     el.querySelector("#sExport").addEventListener("click", () => exportData().catch(() => toast(t("exportFailed"), "warn")));
     el.querySelector("#sImport").addEventListener("click", () => $("importFile").click());
   });
+}
+
+function openNews() {
+  const items = t("news")[VERSION];
+  if (!items) return;
+  openSheet(`
+    <h2 class="sheet-title" id="sheetTitle">${esc(t("newTitle"))} <span class="vnum">v${VERSION}</span></h2>
+    <ul class="news">${items.map(([head, text]) => `<li>${head ? `<strong>${esc(head)}:</strong> ` : ""}${esc(text)}</li>`).join("")}</ul>
+    <div class="sheet-actions"><button type="button" class="btn-primary" data-close>${esc(t("newOk"))}</button></div>`);
+}
+
+function showUpdateBar() {
+  if ($("updateBar")) return;
+  const bar = document.createElement("div");
+  bar.id = "updateBar";
+  bar.className = "update-bar";
+  bar.setAttribute("role", "status");
+  bar.innerHTML = `<span>${esc(t("updateReady"))}</span><button type="button" class="btn-small" data-reload>${esc(t("updateReload"))}</button><button type="button" class="update-x" aria-label="${esc(t("close"))}"><svg class="ico" aria-hidden="true"><use href="#i-close"/></svg></button>`;
+  bar.querySelector("[data-reload]").addEventListener("click", () => location.reload());
+  bar.querySelector(".update-x").addEventListener("click", () => bar.remove());
+  document.body.appendChild(bar);
+}
+
+// Neue Version erst melden, wenn der neue Service Worker übernommen hat und zu einer anderen Version gehört als die laufende Seite.
+function watchUpdates() {
+  const sw = navigator.serviceWorker;
+  const hadController = !!sw.controller;
+  sw.addEventListener("message", e => {
+    if (e.data && typeof e.data.version === "string" && e.data.version !== "oddbits-darts-v" + VERSION) showUpdateBar();
+  });
+  sw.addEventListener("controllerchange", () => {
+    if (hadController && sw.controller) sw.controller.postMessage("version");
+  });
+  sw.register("sw.js").then(reg => {
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") reg.update().catch(() => {});
+    });
+  }).catch(() => {});
 }
 
 function footerHtml() {
@@ -1295,6 +1510,8 @@ function showGame() {
 }
 
 function showSetup() {
+  stopBot();
+  clearHold();
   $("gameScreen").hidden = true;
   $("statsScreen").hidden = true;
   $("setupScreen").hidden = false;
@@ -1504,7 +1721,7 @@ async function exportData() {
 }
 
 const cleanCfg = c => {
-  const out = { game: c.game, legs: c.legs, sets: c.sets, players: c.players.map(p => p.members ? { id: p.id, name: p.name, members: p.members.map(m => ({ id: m.id, name: m.name })) } : { id: p.id, name: p.name }) };
+  const out = { game: c.game, legs: c.legs, sets: c.sets, players: c.players.map(p => p.members ? { id: p.id, name: p.name, members: p.members.map(m => ({ id: m.id, name: m.name })) } : p.bot !== undefined ? { id: p.id, name: p.name, bot: p.bot } : { id: p.id, name: p.name }) };
   if (c.teams === true) out.teams = true;
   ["start", "inMode", "outMode", "variant", "jumps", "rounds", "lives", "attempts", "dartsPer", "holes", "alley"].forEach(k => { if (c[k] !== undefined) out[k] = c[k]; });
   if (Array.isArray(c.numbers)) out.numbers = c.numbers.slice();
@@ -1613,7 +1830,7 @@ function init() {
       startMatch({ ...buildCfg(setup, buildTeams(list)), teams: true });
       return;
     }
-    startMatch(buildCfg(setup, list.map(p => ({ id: p.id, name: p.name }))));
+    startMatch(buildCfg(setup, list.map(p => p.bot ? { id: p.id, name: p.name, bot: p.bot } : { id: p.id, name: p.name })));
   });
 
   if (match && (!isObj(match) || !validGame(match))) {
@@ -1634,9 +1851,12 @@ function init() {
   if (match && state && !state.finished) showGame();
   else showSetup();
 
-  if ("serviceWorker" in navigator && location.protocol !== "file:") {
-    navigator.serviceWorker.register("sw.js").catch(() => {});
+  if (load("seen", null) !== VERSION) {
+    if (returning) openNews();
+    save("seen", VERSION);
   }
+
+  if ("serviceWorker" in navigator && location.protocol !== "file:") watchUpdates();
 }
 
 init();

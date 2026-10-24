@@ -1,14 +1,15 @@
-const CACHE = "oddbits-darts-v0.5";
+const CACHE = "oddbits-darts-v0.6";
 const FILES = [
   "./",
   "index.html",
-  "style.css?v=0.5",
-  "js/app.js?v=0.5",
+  "style.css?v=0.6",
+  "js/app.js?v=0.6",
   "js/modes.js",
   "js/rules.js",
   "js/stats.js",
   "js/db.js",
   "js/checkout.js",
+  "js/bot.js",
   "js/i18n.js",
   "manifest.webmanifest",
   "assets/favicon.svg",
@@ -36,6 +37,10 @@ self.addEventListener("activate", event => {
       .then(keys => Promise.all(keys.filter(k => k.startsWith("oddbits-darts-") && k !== CACHE).map(k => caches.delete(k))))
       .then(() => self.clients.claim())
   );
+});
+
+self.addEventListener("message", event => {
+  if (event.data === "version" && event.source) event.source.postMessage({ version: CACHE });
 });
 
 // Netz zuerst, damit Updates ankommen; ohne Netz (oder nach 3 s) aus dem Cache. Die App lädt nie von selbst neu, ein laufendes Leg bleibt also unberührt.

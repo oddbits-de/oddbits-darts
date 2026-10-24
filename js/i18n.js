@@ -117,6 +117,25 @@ export const I18N = {
     lineupEmpty: "Noch niemand dabei. Tippe auf einen Namen oder füge jemanden hinzu.",
     lineupHint: "Zum Sortieren nach oben oder unten ziehen. Wer oben steht, beginnt.",
     lineupFull: "Max. Anzahl an Spielenden erreicht.",
+    newTitle: "Neu in",
+    newOk: "Los geht's",
+    newLink: v => "Was ist neu in v" + v + "?",
+    news: {
+      "0.6": [
+        ["Gegen Bots spielen", "In X01 und Cricket kannst du jetzt gegen einen von acht Bots antreten, von Lotte (Ø 30) bis Noor (Ø 100). In der Aufstellung einfach auf „+ Bot“ tippen."],
+        ["", "Viel Spaß beim Testen!"]
+      ]
+    },
+    updateReady: "Neue Version verfügbar",
+    updateReload: "Neu laden",
+    addBot: "Bot",
+    botPick: "Gegen einen Bot spielen",
+    botPickSub: "Ø ist der Drei-Dart-Schnitt im X01, die Zahl hinter dem Namen.",
+    botGameOnly: "Bots spielen nur X01 und Cricket.",
+    botNoTeams: "Bots spielen nicht im Team.",
+    botNeedsHuman: "Mindestens eine Person muss mitspielen.",
+    botThrows: name => name + " wirft …",
+    botSkip: "Antippen, um die Aufnahme sofort zu Ende zu werfen",
     start: "Spiel starten",
     remove: "Entfernen",
     moveHint: "Mit Pfeiltasten verschieben",
@@ -208,8 +227,7 @@ export const I18N = {
     deleteAllNote: "Entfernt Spielende, Einstellungen, Spielverlauf und das laufende Spiel von diesem Gerät. Andere oddBits-Apps bleiben unberührt.",
     deleteConfirm: "Wirklich alles löschen?",
     deleteYes: "Ja, löschen",
-    deleted: "Alle Daten gelöscht.",
-    updateReady: "Neue Version geladen. Gilt nach dem nächsten Start."
+    deleted: "Alle Daten gelöscht."
   },
   en: {
     matchWonTeam: name => name + " win!",
@@ -329,6 +347,25 @@ export const I18N = {
     lineupEmpty: "Nobody in yet. Tap a name or add someone.",
     lineupHint: "Drag up or down to reorder. Top of the list throws first.",
     lineupFull: "Maximum number of players reached.",
+    newTitle: "New in",
+    newOk: "Let's go",
+    newLink: v => "What's new in v" + v + "?",
+    news: {
+      "0.6": [
+        ["Play against bots", "In X01 and Cricket you can now take on one of eight bots, from Lotte (Ø 30) to Noor (Ø 100). Just tap “+ Bot” in the line-up."],
+        ["", "Have fun testing!"]
+      ]
+    },
+    updateReady: "New version available",
+    updateReload: "Reload",
+    addBot: "Bot",
+    botPick: "Play against a bot",
+    botPickSub: "Ø is the three-dart average in X01, the number after the name.",
+    botGameOnly: "Bots only play X01 and Cricket.",
+    botNoTeams: "Bots can't play in teams.",
+    botNeedsHuman: "At least one person has to play.",
+    botThrows: name => name + " is throwing …",
+    botSkip: "Tap to finish the visit right away",
     start: "Start game",
     remove: "Remove",
     moveHint: "Move with arrow keys",
@@ -420,7 +457,6 @@ export const I18N = {
     deleteAllNote: "Removes players, settings, game history and the running game from this device. Other oddBits apps are not affected.",
     deleteConfirm: "Really delete everything?",
     deleteYes: "Yes, delete",
-    deleted: "All data deleted.",
-    updateReady: "New version loaded. Applies on next start."
+    deleted: "All data deleted."
   }
 };
